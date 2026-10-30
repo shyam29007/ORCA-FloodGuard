@@ -1,13 +1,22 @@
-# Python
+# Environment & Secrets
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Python & Virtual Environments
+.venv/
+**/.venv/
+env/
+venv/
+ENV/
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-env/
-venv/
-ENV/
-.env
 
 # SQLite
 *.db
@@ -22,4 +31,5 @@ htmlcov/
 .idea/
 .vscode/
 *.swp
+node_modules/
 
