@@ -1,0 +1,28 @@
+{
+  "include": [
+    "backend"
+  ],
+  "extraPaths": [
+    ".",
+    "backend"
+  ],
+  "venvPath": "backend",
+  "venv": ".venv",
+  "typeCheckingMode": "standard",
+  "executionEnvironments": [
+    {
+      "root": "backend",
+      "extraPaths": [
+        ".",
+        ".."
+      ]
+    },
+    {
+      "root": ".",
+      "extraPaths": [
+        ".",
+        "backend"
+      ]
+    }
+  ]
+}
