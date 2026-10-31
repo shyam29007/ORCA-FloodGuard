@@ -18,7 +18,7 @@ from backend.app.core.llm_factory import get_llm
 
 def main():
     print("=" * 60)
-    print("ORAC-FloodGuard: Telemetry & Provider Source Verification")
+    print("ORCA-FloodGuard: Telemetry & Provider Source Verification")
     print("=" * 60)
 
     # 1. Weather

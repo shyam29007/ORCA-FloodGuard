@@ -13,7 +13,7 @@ for p in [str(backend_dir), str(root_dir)]:
 from backend.app.database.init_db import run_init
 
 if __name__ == "__main__":
-    print("Initializing ORAC-FloodGuard Database...")
+    print("Initializing ORCA-FloodGuard Database...")
     run_init()
     print("Database initialization and reference data seeding completed successfully.")
 

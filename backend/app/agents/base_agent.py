@@ -15,8 +15,9 @@ from backend.app.core.logging import logger
 class BaseAgent(ABC):
     """Abstract base class for all specialist agents."""
 
-    def __init__(self, name: AgentName):
+    def __init__(self, name: AgentName, provider_dependency: Optional[str] = None):
         self.name = name
+        self.provider_dependency = provider_dependency
 
     @abstractmethod
     def execute(self, state: Dict[str, Any]) -> Dict[str, Any]:
@@ -34,6 +35,7 @@ class BaseAgent(ABC):
             agent_name=self.name,
             status=AgentExecutionStatus.RUNNING,
             started_at=started_at,
+            provider_dependency=self.provider_dependency,
             inputs={k: str(v)[:200] for k, v in state.items() if k not in ("agent_traces", "evidence_pool")},
         )
 
@@ -44,9 +46,31 @@ class BaseAgent(ABC):
             duration_ms = round((time.perf_counter() - start_time) * 1000.0, 2)
 
             trace.status = AgentExecutionStatus.COMPLETED
+            trace.is_execution_completed = True
             trace.completed_at = datetime.now(timezone.utc)
             trace.duration_ms = duration_ms
             trace.outputs = {k: str(v)[:200] for k, v in output.items() if k not in ("evidence_pool",)}
+
+            # Extract trace metadata populated by specialist execution
+            trace_meta = output.pop("_trace_meta", None) or {}
+            if trace_meta.get("provider_dependency"):
+                trace.provider_dependency = trace_meta["provider_dependency"]
+            if trace_meta.get("evidence_mode"):
+                trace.evidence_mode = trace_meta["evidence_mode"]
+            if trace_meta.get("data_freshness"):
+                trace.data_freshness = trace_meta["data_freshness"]
+            if trace_meta.get("input_evidence_refs"):
+                trace.input_evidence_refs = list(trace_meta["input_evidence_refs"])
+            if trace_meta.get("output_evidence_refs"):
+                trace.output_evidence_refs = list(trace_meta["output_evidence_refs"])
+            if "is_schema_validated" in trace_meta:
+                trace.is_schema_validated = bool(trace_meta["is_schema_validated"])
+            if "is_source_authenticated" in trace_meta:
+                trace.is_source_authenticated = bool(trace_meta["is_source_authenticated"])
+            if "is_data_freshness_validated" in trace_meta:
+                trace.is_data_freshness_validated = bool(trace_meta["is_data_freshness_validated"])
+            if trace_meta.get("diagnostic_message"):
+                trace.diagnostic_message = str(trace_meta["diagnostic_message"])
 
             logger.info("[%s] Completed successfully in %0.2fms", self.name.value, duration_ms)
             output["_trace"] = trace
@@ -58,9 +82,11 @@ class BaseAgent(ABC):
             logger.error("[%s] Execution error in %0.2fms: %s", self.name.value, duration_ms, error_msg, exc_info=True)
 
             trace.status = AgentExecutionStatus.FAILED
+            trace.is_execution_completed = False
             trace.completed_at = datetime.now(timezone.utc)
             trace.duration_ms = duration_ms
             trace.error_message = error_msg
+            trace.diagnostic_message = f"Agent execution encountered exception: {str(exc)}"
 
             # Do not crash the orchestrator; return error state safely
             return {
@@ -68,4 +94,3 @@ class BaseAgent(ABC):
                 "status": "FAILED",
                 "_trace": trace,
             }
-

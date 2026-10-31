@@ -17,7 +17,7 @@ class Settings(BaseSettings):
 
     # General
     APP_ENV: str = "development"
-    APP_NAME: str = "ORAC-FloodGuard"
+    APP_NAME: str = "ORCA-FloodGuard"
     API_V1_PREFIX: str = "/api"
     DEBUG: bool = False
     LOG_LEVEL: str = "INFO"
@@ -25,7 +25,7 @@ class Settings(BaseSettings):
 
     # Database
     DATABASE_MODE: str = "sqlite"  # 'sqlite' or 'postgres'
-    DATABASE_URL: str = "sqlite:///./orac_floodguard.db"
+    DATABASE_URL: str = "sqlite:///./orca_floodguard.db"
 
     # LLM Settings (One shared provider configuration)
     LLM_PROVIDER: str = "gemini"  # 'gemini', 'openai', 'mock'
@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     RIVER_API_BASE_URL: Optional[str] = None
     DAM_API_BASE_URL: Optional[str] = None
     ELEVATION_API_BASE_URL: Optional[str] = None
+    IMD_API_KEY: Optional[str] = None
+    CWC_API_KEY: Optional[str] = None
+    BBMB_API_KEY: Optional[str] = None
+    PROVIDER_MAX_RETRIES: int = 3
+    PROVIDER_RETRY_BACKOFF_FACTOR: float = 0.5
+    PROVIDER_MAX_BACKOFF_SECONDS: float = 4.0
 
     # Configurable Deterministic Risk Thresholds (Assumption baselines)
     RAIN_MODERATE_24H_MM: float = 40.0
@@ -62,7 +68,17 @@ class Settings(BaseSettings):
 
     # Evidence freshness threshold in hours
     FRESHNESS_MAX_HOURS: int = 24
+    RIVER_FRESHNESS_MAX_HOURS: int = 12
+    WEATHER_FRESHNESS_MAX_HOURS: int = 24
+    DAM_FRESHNESS_MAX_HOURS: int = 24
     CRITICAL_FRESHNESS_MAX_HOURS: int = 12
+
+    # Notification Dispatch Safety (MOCK, SANDBOX, LIVE)
+    NOTIFICATION_MODE: str = "MOCK"  # 'MOCK', 'SANDBOX', or 'LIVE'
+    NOTIFICATION_SANDBOX_PHONE: Optional[str] = None
+    NOTIFICATION_SANDBOX_EMAIL: Optional[str] = None
+    SMS_GATEWAY_URL: Optional[str] = None
+    SMS_GATEWAY_API_KEY: Optional[str] = None
 
 
 settings = Settings()

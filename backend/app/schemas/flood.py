@@ -70,6 +70,9 @@ class FloodAssessmentResponse(BaseSchema):
     alert_draft_id: Optional[str] = None
     alert_draft: Optional[AlertDraftSchema] = None
     
+    # Detailed per-agent execution and audit verification traces
+    agent_traces: Dict[str, Any] = Field(default_factory=dict, description="Detailed per-agent execution traces with provenance and validation flags")
+    
     limitations: List[str] = Field(default_factory=list)
     warnings: List[str] = Field(default_factory=list)
 

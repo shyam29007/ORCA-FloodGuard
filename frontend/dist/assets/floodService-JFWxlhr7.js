@@ -1,0 +1,1 @@
+import{a as e}from"./index-B6Rd5yH9.js";const a={async assessFloodRisk(o){const s=await e.post("/flood/assess",o);return s.data||s},async getAssessment(o){const s=await e.get(`/flood/assessments/${o}`);return s.data||s},async getVillageOutlook(o){const s=await e.get(`/flood/villages/${o}/outlook`);return s.data||s}};export{a as f};

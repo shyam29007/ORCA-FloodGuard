@@ -14,7 +14,7 @@ class AlertAgent(BaseAgent):
     """Specialist agent for advisory text drafting and multilingual citizen communication."""
 
     def __init__(self):
-        super().__init__(AgentName.ALERT)
+        super().__init__(AgentName.ALERT, provider_dependency="None (Deterministic Rule Engine)")
 
     def execute(self, state: Dict[str, Any]) -> Dict[str, Any]:
         village_name = state.get("village_name", "Village")
@@ -69,13 +69,13 @@ class AlertAgent(BaseAgent):
                 f"Residents in vulnerable floodplains should prepare for precautionary evacuation to designated relief centres."
             ),
             RiskLevel.MODERATE: (
-                f"FLOOD WATCH for {village_name}: Moderate monsoon precipitation forecast ({rain_24h}mm). Stay tuned to district administration advisories."
+                f"FLOOD ADVISORY for {village_name}: Sustained monsoon precipitation anticipated. Avoid riverbanks and stay alert to civil administration bulletins."
             ),
             RiskLevel.LOW: (
-                f"NORMAL ADVISORY for {village_name}: Hydrological parameters within safe limits. Normal vigilance advised."
+                f"NORMAL CONDITIONS for {village_name}: No imminent inundation risk detected. Hydrological conditions remain within nominal limits."
             ),
             RiskLevel.INSUFFICIENT_EVIDENCE: (
-                f"DATA ADVISORY for {village_name}: Insufficient telemetry observations to reliably assess flood risk. Ground confirmation requested."
+                f"NOTICE for {village_name}: Comprehensive automated risk calculation unavailable due to unconfigured live telemetry feeds. Consult district administration."
             ),
         }
 
@@ -118,9 +118,22 @@ class AlertAgent(BaseAgent):
             evidence_summary=evidence_summary,
         )
 
+        trace_meta = {
+            "provider_dependency": "None (Deterministic Rule Engine)",
+            "evidence_mode": "DERIVED",
+            "data_freshness": "FRESH",
+            "input_evidence_refs": ["state.overall_risk", "state.rainfall_24h_mm", "state.river_level_meters", "state.max_dam_discharge_cusecs"],
+            "output_evidence_refs": [draft.alert_id],
+            "is_schema_validated": True,
+            "is_source_authenticated": False,
+            "is_data_freshness_validated": False,
+            "diagnostic_message": "Generated bilingual advisory draft with Punjabi & English templates; requires human emergency official authorization before broadcast.",
+        }
+
         return {
             "alert_draft": draft.model_dump(),
             "alert_draft_id": draft.alert_id,
             "status": "SUCCESS",
             "notes": ["Alert draft prepared with English & Punjabi copy. Status is PENDING_APPROVAL."],
+            "_trace_meta": trace_meta,
         }

@@ -15,7 +15,7 @@ from backend.app.services.replay_service import ReplayService
 
 def main():
     print("=" * 60)
-    print("ORAC-FloodGuard: 2023 Punjab Monsoon Floods Replay Simulation")
+    print("ORCA-FloodGuard: 2023 Punjab Monsoon Floods Replay Simulation")
     print("=" * 60)
 
     start_req = HistoricalReplayStartRequest(

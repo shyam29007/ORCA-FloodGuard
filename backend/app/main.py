@@ -1,4 +1,4 @@
-"""ORAC-FloodGuard FastAPI Application Entrypoint."""
+"""ORCA-FloodGuard FastAPI Application Entrypoint."""
 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
@@ -20,6 +20,8 @@ from backend.app.api.routes import (
     replay,
     reports,
     alerts,
+    providers,
+    auth,
 )
 
 setup_logging()
@@ -28,16 +30,19 @@ setup_logging()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan management."""
-    logger.info("Initializing ORAC-FloodGuard Backend...")
+    logger.info("Initializing ORCA-FloodGuard Backend...")
     logger.info("Configuration: ENV=%s, DB_MODE=%s, LLM=%s",
                 settings.APP_ENV, settings.DATABASE_MODE, settings.LLM_PROVIDER)
     try:
-        from backend.app.database.init_db import init_db
-        init_db()
+        if settings.APP_ENV != "test":
+            from backend.app.database.init_db import init_db
+            init_db()
+        else:
+            logger.info("Test environment detected; skipping lifespan init_db.")
     except Exception as e:
         logger.error("Failed to verify/migrate database schema on startup: %s", str(e))
     yield
-    logger.info("Shutting down ORAC-FloodGuard Backend...")
+    logger.info("Shutting down ORCA-FloodGuard Backend...")
 
 
 app = FastAPI(
@@ -73,6 +78,7 @@ async def floodguard_exception_handler(request: Request, exc: FloodGuardExceptio
 # Register all API endpoints
 prefix = settings.API_V1_PREFIX
 app.include_router(health.router, prefix=prefix)
+app.include_router(auth.router, prefix=prefix)
 app.include_router(flood.router, prefix=prefix)
 app.include_router(agents.router, prefix=prefix)
 app.include_router(weather.router, prefix=prefix)
@@ -83,13 +89,16 @@ app.include_router(evacuation.router, prefix=prefix)
 app.include_router(replay.router, prefix=prefix)
 app.include_router(reports.router, prefix=prefix)
 app.include_router(alerts.router, prefix=prefix)
+app.include_router(providers.router, prefix=prefix)
 
 
 @app.get("/")
 def root():
     """Root redirect / information."""
     return {
-        "message": "Welcome to ORAC-FloodGuard API",
+        "message": "Welcome to ORCA-FloodGuard API",
         "docs": "/docs",
         "health": f"{settings.API_V1_PREFIX}/health",
+        "providers": f"{settings.API_V1_PREFIX}/providers/status",
+        "auth": f"{settings.API_V1_PREFIX}/auth/demo-accounts",
     }

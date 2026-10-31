@@ -1,4 +1,4 @@
-"""Structured logging configuration for ORAC-FloodGuard."""
+"""Structured logging configuration for ORCA-FloodGuard."""
 
 import logging
 import sys
@@ -23,5 +23,5 @@ def setup_logging() -> None:
     logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
-logger = logging.getLogger("orac_floodguard")
+logger = logging.getLogger("orca_floodguard")
 

@@ -13,7 +13,7 @@ class GISEvacuationAgent(BaseAgent):
     """Specialist agent for spatial topography, shelter inventory, and evacuation corridor planning."""
 
     def __init__(self):
-        super().__init__(AgentName.GIS_EVACUATION)
+        super().__init__(AgentName.GIS_EVACUATION, provider_dependency="NASA SRTM 30m DEM & OpenStreetMap")
 
     def execute(self, state: Dict[str, Any]) -> Dict[str, Any]:
         lat = state.get("latitude", 31.1465)
@@ -61,6 +61,18 @@ class GISEvacuationAgent(BaseAgent):
             notes=notes,
         )
 
+        trace_meta = {
+            "provider_dependency": "NASA SRTM 30m DEM & OpenStreetMap",
+            "evidence_mode": "STATIC_REFERENCE",
+            "data_freshness": "STATIC_REFERENCE",
+            "input_evidence_refs": ["state.latitude", "state.longitude", "state.village_id"],
+            "output_evidence_refs": [getattr(ev, "evidence_id", f"ev-gis-{i}") for i, ev in enumerate(elev_ev)],
+            "is_schema_validated": True,
+            "is_source_authenticated": False,
+            "is_data_freshness_validated": False,
+            "diagnostic_message": f"Elevation derived from NASA SRTM 30m DEM ({elev}m AMSL EGM96) and candidate corridors mapped via OpenStreetMap.",
+        }
+
         res = {
             "gis_evacuation_data": {
                 "elevation_meters": elev,
@@ -73,6 +85,7 @@ class GISEvacuationAgent(BaseAgent):
             "village_elevation_meters": elev,
             "is_low_lying_zone": is_low,
             "status": "SUCCESS",
+            "_trace_meta": trace_meta,
         }
         if discrepancy_warning:
             res["warnings"] = [discrepancy_warning]

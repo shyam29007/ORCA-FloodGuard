@@ -88,6 +88,7 @@ def run_full_village_assessment(
         evacuation=gis_out,
         alert_draft_id=final_state.get("alert_draft_id"),
         alert_draft=alert_draft_obj,
+        agent_traces=final_state.get("agent_traces") or {},
         limitations=list(final_state.get("limitations") or []),
         warnings=list(final_state.get("warnings") or []),
         validation_status=str(final_state.get("schema_validation_status") or "PASSED"),

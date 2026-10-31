@@ -152,8 +152,18 @@ def test_resident_report_workflow(client):
 
 
 def test_alert_drafting_and_approval_workflow(client):
-    # 1. Draft alert
-    draft_res = client.post("/api/alerts/draft?village_name=Phillaur&overall_risk=HIGH&rainfall_24h_mm=78.0")
+    # 0. Create prerequisite assessment
+    assess_res = client.post("/api/flood/assess", json={
+        "village_name": "Phillaur",
+        "forecast_horizon_hours": 24,
+        "include_simulated_fallback": True,
+        "operational_mode": False,
+    })
+    assert assess_res.status_code == 200
+    assessment_id = assess_res.json()["data"]["assessment_id"]
+
+    # 1. Draft alert linked to valid assessment
+    draft_res = client.post(f"/api/alerts/draft?assessment_id={assessment_id}&village_name=Phillaur&overall_risk=HIGH&rainfall_24h_mm=78.0")
     assert draft_res.status_code == 201
     draft = draft_res.json()["data"]
     alert_id = draft["alert_id"]
@@ -164,17 +174,24 @@ def test_alert_drafting_and_approval_workflow(client):
     get_res = client.get(f"/api/alerts/{alert_id}")
     assert get_res.status_code == 200
 
-    # 3. Approve alert (Human in the loop approval requirement)
+    # 3. Approve alert with Official Bearer authentication (Human in the loop approval requirement)
+    login_res = client.post("/api/auth/login", json={
+        "email": "official@orca.punjab.gov.in",
+        "password": "Official@123",
+    })
+    assert login_res.status_code == 200
+    token = login_res.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
     appr_payload = {
         "alert_id": alert_id,
-        "approved_by": "Deputy Commissioner Jalandhar",
+        "approved_by": "Er. Harjit Kaur (SDMA Official)",
         "action": "APPROVE",
         "modification_notes": "Immediate broadcast authorized via SMS and PA system.",
     }
-    appr_res = client.post(f"/api/alerts/{alert_id}/approve", json=appr_payload)
+    appr_res = client.post(f"/api/alerts/{alert_id}/approve", json=appr_payload, headers=headers)
     assert appr_res.status_code == 200
     appr_data = appr_res.json()["data"]
     assert appr_data["status"] == "APPROVED"
     assert appr_data["action_taken"] == "APPROVE"
     assert appr_data["dispatch_results"] is not None
-

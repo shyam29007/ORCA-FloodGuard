@@ -1,4 +1,4 @@
-# ORAC-FloodGuard Repository Structure
+# ORCA-FloodGuard Repository Structure
 
 ## Member 1 Ownership: Backend, Agentic AI & Database
 

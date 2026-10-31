@@ -1,4 +1,4 @@
-"""CLI migration runner script for ORAC-FloodGuard."""
+"""CLI migration runner script for ORCA-FloodGuard."""
 
 import sys
 from pathlib import Path
@@ -17,7 +17,7 @@ import os
 
 def main():
     print("=" * 60)
-    print("ORAC-FloodGuard: Database Schema Migration Runner")
+    print("ORCA-FloodGuard: Database Schema Migration Runner")
     print("=" * 60)
 
     # 1. Run via configured SQLAlchemy engine
@@ -31,7 +31,7 @@ def main():
         print("Database schema is already up to date.")
 
     # 2. Check and migrate local sqlite file if present
-    for db_file in ["orac_floodguard.db", "backend/orac_floodguard.db"]:
+    for db_file in ["orca_floodguard.db", "backend/orca_floodguard.db", "orac_floodguard.db", "backend/orac_floodguard.db"]:
         if os.path.exists(db_file):
             print(f"\nChecking local SQLite file: {db_file}...")
             f_applied = migrate_sqlite_file(db_file)

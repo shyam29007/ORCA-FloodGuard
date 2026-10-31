@@ -11,7 +11,7 @@ class LocationAgent(BaseAgent):
     """Specialist agent for geographic resolution and spatial context identification."""
 
     def __init__(self):
-        super().__init__(AgentName.LOCATION)
+        super().__init__(AgentName.LOCATION, provider_dependency="Local Geospatial Boundary Index")
 
     def execute(self, state: Dict[str, Any]) -> Dict[str, Any]:
         village_name = state.get("village_name")
@@ -53,6 +53,18 @@ class LocationAgent(BaseAgent):
             warnings=warnings,
         )
 
+        trace_meta = {
+            "provider_dependency": "Local Geospatial Boundary Index",
+            "evidence_mode": "STATIC_REFERENCE",
+            "data_freshness": "STATIC_REFERENCE",
+            "input_evidence_refs": ["state.village_name", "state.latitude", "state.longitude"],
+            "output_evidence_refs": ["location_resolution", "latitude", "longitude", "river_basin"],
+            "is_schema_validated": True,
+            "is_source_authenticated": False,
+            "is_data_freshness_validated": False,
+            "diagnostic_message": f"Resolved spatial coordinates for {location_meta.name} ({location_meta.district}) from local Punjab administrative reference dataset.",
+        }
+
         return {
             "village": location_meta.model_dump(),
             "location_resolution": resolution_resp.model_dump(),
@@ -62,4 +74,5 @@ class LocationAgent(BaseAgent):
             "district": location_meta.district,
             "river_basin": location_meta.river_basin,
             "status": "SUCCESS",
+            "_trace_meta": trace_meta,
         }

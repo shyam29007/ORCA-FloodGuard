@@ -2,11 +2,10 @@
 
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Tuple, List
-import httpx
-from backend.app.core.config import settings
 from backend.app.core.logging import logger
 from backend.app.schemas.weather import WeatherForecastData
 from backend.app.schemas.evidence import EvidenceRecordSchema, EvidenceStatus, EvidenceQuality
+from backend.app.integrations.imd_provider import IMDWeatherProvider
 
 
 def fetch_weather_forecast(
@@ -22,85 +21,46 @@ def fetch_weather_forecast(
     valid_72h = now + timedelta(hours=72)
     evidence_records: List[EvidenceRecordSchema] = []
 
-    # Attempt live API call if configured
-    if settings.WEATHER_API_BASE_URL:
+    # 1. Attempt live API retrieval via IMDWeatherProvider if configured
+    provider = IMDWeatherProvider()
+    if provider.is_configured():
         try:
-            with httpx.Client(timeout=settings.REQUEST_TIMEOUT) as client:
-                resp = client.get(
-                    f"{settings.WEATHER_API_BASE_URL}/forecast",
-                    params={"lat": latitude, "lon": longitude},
-                )
-                if resp.status_code == 200:
-                    data = resp.json()
-                    r24 = float(data.get("rain_24h_mm", 0.0))
-                    r48 = float(data.get("rain_48h_mm", r24 * 1.5))
-                    r72 = float(data.get("rain_72h_mm", r48 * 1.3))
-
-                    forecast = WeatherForecastData(
-                        rainfall_24h_mm=r24,
-                        rainfall_48h_mm=r48,
-                        rainfall_72h_mm=r72,
-                        precipitation_probability=float(data.get("prob", 70.0)),
-                        temperature_c=float(data.get("temp", 28.5)),
-                        forecast_source="IMD_LIVE",
-                        forecast_issue_time=now,
-                        forecast_valid_time_24h=valid_24h,
-                        forecast_valid_time_48h=valid_48h,
-                        forecast_valid_time_72h=valid_72h,
-                        issued_at=now,
-                        is_simulated=False,
-                    )
-                    ev24 = EvidenceRecordSchema(
-                        source="IMD",
-                        source_type="WEATHER_API",
-                        location={"lat": latitude, "lon": longitude, "district": district},
-                        parameter="rainfall_24h",
-                        value=r24,
-                        unit="mm",
-                        observed_at=now,
-                        forecast_issue_time=now,
-                        forecast_valid_time=valid_24h,
-                        retrieved_at=now,
-                        status=EvidenceStatus.LIVE,
-                        quality=EvidenceQuality.HIGH,
-                        limitations="Numerical Weather Prediction (NWP) model output; convective rainfall may vary locally.",
-                    )
-                    evidence_records.append(ev24)
-                    return forecast, evidence_records
+            return provider.fetch_forecast(latitude=latitude, longitude=longitude, district=district)
         except Exception as e:
-            logger.warning("Weather API request failed: %s; using simulated Punjab forecast.", str(e))
+            logger.warning("IMD weather provider failed: %s; falling back according to simulation configuration.", str(e))
 
-    # Standard fallback simulation (representative Punjab monsoon cloudburst scenario)
+    # 2. Fallback: Simulation or Explicit UNAVAILABLE
     base_rain = 58.0 if district and "jalandhar" in district.lower() else 42.0
-    r24 = base_rain
-    r48 = round(base_rain * 1.7, 1)
-    r72 = round(base_rain * 2.4, 1)
+    r24 = base_rain if allow_simulated else None
+    r48 = round(base_rain * 1.7, 1) if allow_simulated else None
+    r72 = round(base_rain * 2.4, 1) if allow_simulated else None
 
     status = EvidenceStatus.SIMULATED if allow_simulated else EvidenceStatus.UNAVAILABLE
+    source_name = "IMD_PUNJAB_RADAR" if allow_simulated else "IMD"
 
     forecast = WeatherForecastData(
-        rainfall_24h_mm=r24 if allow_simulated else None,
-        rainfall_48h_mm=r48 if allow_simulated else None,
-        rainfall_72h_mm=r72 if allow_simulated else None,
+        rainfall_24h_mm=r24,
+        rainfall_48h_mm=r48,
+        rainfall_72h_mm=r72,
         precipitation_probability=85.0 if allow_simulated else 0.0,
-        temperature_c=27.4,
-        wind_speed_kmh=18.5,
-        forecast_source="IMD_MONSOON_SYNTHETIC",
+        temperature_c=27.4 if allow_simulated else 0.0,
+        wind_speed_kmh=18.5 if allow_simulated else 0.0,
+        forecast_source="IMD_MONSOON_SYNTHETIC" if allow_simulated else "IMD_UNAVAILABLE",
         forecast_issue_time=now,
         forecast_valid_time_24h=valid_24h,
         forecast_valid_time_48h=valid_48h,
         forecast_valid_time_72h=valid_72h,
         issued_at=now,
-        is_simulated=True,
+        is_simulated=allow_simulated,
     )
 
     # 24h Horizon Evidence Record
     ev24 = EvidenceRecordSchema(
-        source="IMD_PUNJAB_RADAR",
+        source=source_name,
         source_type="WEATHER_API",
         location={"lat": latitude, "lon": longitude, "district": district},
         parameter="rainfall_24h",
-        value=r24 if allow_simulated else None,
+        value=r24,
         unit="mm",
         observed_at=now,
         forecast_issue_time=now,
@@ -108,17 +68,19 @@ def fetch_weather_forecast(
         retrieved_at=now,
         status=status,
         quality=EvidenceQuality.MEDIUM if allow_simulated else EvidenceQuality.LOW,
-        limitations="Simulated monsoon scenario for demonstration when live radar feed is unconfigured.",
+        dataset_name="IMD Radar / NWP Model",
+        limitations="Simulated monsoon scenario for demonstration when live radar feed is unconfigured." if allow_simulated else "Live telemetry feed is unconfigured or unavailable.",
+        eligibility_reason="SIMULATION_DEMO" if allow_simulated else "MEASUREMENT_UNAVAILABLE",
     )
     evidence_records.append(ev24)
 
     # 48h Horizon Evidence Record
     ev48 = EvidenceRecordSchema(
-        source="IMD_PUNJAB_RADAR",
+        source=source_name,
         source_type="WEATHER_API",
         location={"lat": latitude, "lon": longitude, "district": district},
         parameter="rainfall_48h",
-        value=r48 if allow_simulated else None,
+        value=r48,
         unit="mm",
         observed_at=now,
         forecast_issue_time=now,
@@ -126,17 +88,19 @@ def fetch_weather_forecast(
         retrieved_at=now,
         status=status,
         quality=EvidenceQuality.MEDIUM if allow_simulated else EvidenceQuality.LOW,
-        limitations="Simulated 48h accumulated monsoon forecast.",
+        dataset_name="IMD Radar / NWP Model",
+        limitations="Simulated 48h accumulated monsoon forecast." if allow_simulated else "Live telemetry feed is unconfigured or unavailable.",
+        eligibility_reason="SIMULATION_DEMO" if allow_simulated else "MEASUREMENT_UNAVAILABLE",
     )
     evidence_records.append(ev48)
 
     # 72h Horizon Evidence Record
     ev72 = EvidenceRecordSchema(
-        source="IMD_PUNJAB_RADAR",
+        source=source_name,
         source_type="WEATHER_API",
         location={"lat": latitude, "lon": longitude, "district": district},
         parameter="rainfall_72h",
-        value=r72 if allow_simulated else None,
+        value=r72,
         unit="mm",
         observed_at=now,
         forecast_issue_time=now,
@@ -144,7 +108,9 @@ def fetch_weather_forecast(
         retrieved_at=now,
         status=status,
         quality=EvidenceQuality.MEDIUM if allow_simulated else EvidenceQuality.LOW,
-        limitations="Simulated 72h accumulated monsoon forecast.",
+        dataset_name="IMD Radar / NWP Model",
+        limitations="Simulated 72h accumulated monsoon forecast." if allow_simulated else "Live telemetry feed is unconfigured or unavailable.",
+        eligibility_reason="SIMULATION_DEMO" if allow_simulated else "MEASUREMENT_UNAVAILABLE",
     )
     evidence_records.append(ev72)
 

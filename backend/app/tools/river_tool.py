@@ -3,11 +3,10 @@
 import math
 from datetime import datetime, timezone
 from typing import Optional, Tuple, List
-import httpx
-from backend.app.core.config import settings
 from backend.app.core.logging import logger
 from backend.app.schemas.river import RiverStation, RiverReading
 from backend.app.schemas.evidence import EvidenceRecordSchema, EvidenceStatus, EvidenceQuality
+from backend.app.integrations.cwc_provider import CWCRiverProvider
 
 PUNJAB_RIVER_STATIONS: List[RiverStation] = [
     RiverStation(
@@ -88,71 +87,47 @@ def fetch_river_reading(
 
     station = next((s for s in PUNJAB_RIVER_STATIONS if s.station_id == station_id), PUNJAB_RIVER_STATIONS[0])
 
-    if settings.RIVER_API_BASE_URL:
+    # 1. Attempt live API retrieval via CWCRiverProvider if configured
+    provider = CWCRiverProvider()
+    if provider.is_configured():
         try:
-            with httpx.Client(timeout=settings.REQUEST_TIMEOUT) as client:
-                res = client.get(f"{settings.RIVER_API_BASE_URL}/stations/{station_id}/reading")
-                if res.status_code == 200:
-                    payload = res.json()
-                    lvl = float(payload.get("water_level_m", station.warning_level_meters - 0.5))
-                    reading = RiverReading(
-                        station_id=station_id,
-                        water_level_meters=lvl,
-                        discharge_cusecs=float(payload.get("discharge_cusecs", 45000)),
-                        trend=payload.get("trend", "RISING"),
-                        status=EvidenceStatus.LIVE,
-                        observed_at=now,
-                        is_above_warning=lvl >= station.warning_level_meters,
-                        is_above_danger=lvl >= station.danger_level_meters,
-                        buffer_to_danger_meters=round(station.danger_level_meters - lvl, 2),
-                    )
-                    ev = EvidenceRecordSchema(
-                        source="CWC",
-                        source_type="RIVER_GAUGE",
-                        location={"station_id": station_id, "name": station.station_name},
-                        parameter="river_water_level",
-                        value=lvl,
-                        unit="m",
-                        observed_at=now,
-                        status=EvidenceStatus.LIVE,
-                        quality=EvidenceQuality.HIGH,
-                        limitations="Real-time optical/pressure transducer telemetry",
-                    )
-                    evidence_records.append(ev)
-                    return reading, evidence_records
+            return provider.fetch_station_reading(station_id=station_id, station=station)
         except Exception as e:
-            logger.warning("River gauge API unavailable: %s; falling back to simulated data.", str(e))
+            logger.warning("CWC river provider failed: %s; falling back according to simulation configuration.", str(e))
 
-    # Baseline simulated river reading (high water level approaching warning)
-    current_lvl = station.warning_level_meters + 0.2
+    # 2. Fallback: Simulation or Explicit UNAVAILABLE
+    current_lvl = station.warning_level_meters + 0.2 if allow_simulated else None
     status = EvidenceStatus.SIMULATED if allow_simulated else EvidenceStatus.UNAVAILABLE
+    source_name = "CWC_TELEMETRY_SAMPLE" if allow_simulated else "CWC"
 
     reading = RiverReading(
         station_id=station_id,
-        water_level_meters=current_lvl if allow_simulated else None,
+        water_level_meters=current_lvl,
         discharge_cusecs=68000.0 if allow_simulated else None,
         trend="RISING" if allow_simulated else "UNKNOWN",
         status=status,
+        is_simulated=(status == EvidenceStatus.SIMULATED),
         observed_at=now,
-        is_above_warning=current_lvl >= station.warning_level_meters if allow_simulated else False,
-        is_above_danger=current_lvl >= station.danger_level_meters if allow_simulated else False,
-        buffer_to_danger_meters=round(station.danger_level_meters - current_lvl, 2) if allow_simulated else None,
+        is_above_warning=current_lvl >= station.warning_level_meters if current_lvl is not None else False,
+        is_above_danger=current_lvl >= station.danger_level_meters if current_lvl is not None else False,
+        buffer_to_danger_meters=round(station.danger_level_meters - current_lvl, 2) if current_lvl is not None else None,
     )
 
     ev = EvidenceRecordSchema(
-        source="CWC_TELEMETRY_SAMPLE",
+        source=source_name,
         source_type="RIVER_GAUGE",
         location={"station_id": station_id, "name": station.station_name, "river": station.river_name},
         parameter="river_water_level",
-        value=current_lvl if allow_simulated else None,
+        value=current_lvl,
         unit="m",
         observed_at=now,
         retrieved_at=now,
         status=status,
         quality=EvidenceQuality.MEDIUM if allow_simulated else EvidenceQuality.LOW,
-        limitations="Simulated river stage reading based on 2023 monsoon crest scenarios.",
+        dataset_name="CWC River Gauge Network",
+        limitations="Simulated river stage reading based on 2023 monsoon crest scenarios." if allow_simulated else "Live river telemetry feed is unconfigured or unavailable.",
+        eligibility_reason="SIMULATION_DEMO" if allow_simulated else "MEASUREMENT_UNAVAILABLE",
     )
     evidence_records.append(ev)
 
     return reading, evidence_records
-

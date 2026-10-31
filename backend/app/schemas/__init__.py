@@ -53,6 +53,11 @@ from backend.app.schemas.replay import (
     HistoricalReplayStatusResponse,
     HistoricalReplayStepRequest,
 )
+from backend.app.schemas.provider import (
+    ProviderStatus,
+    ProviderHealthStatus,
+    ProviderDashboardResponse,
+)
 
 __all__ = [
     "ApiResponse",
@@ -96,5 +101,7 @@ __all__ = [
     "HistoricalReplayStartRequest",
     "HistoricalReplayStatusResponse",
     "HistoricalReplayStepRequest",
+    "ProviderStatus",
+    "ProviderHealthStatus",
+    "ProviderDashboardResponse",
 ]
-

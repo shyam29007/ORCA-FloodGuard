@@ -2,11 +2,11 @@
 
 from datetime import datetime, timezone
 from typing import Optional, Tuple, List
-import httpx
 from backend.app.core.config import settings
 from backend.app.core.logging import logger
 from backend.app.schemas.dam import DamInformation
 from backend.app.schemas.evidence import EvidenceRecordSchema, EvidenceStatus, EvidenceQuality
+from backend.app.integrations.bbmb_provider import BBMBDamProvider
 
 PUNJAB_DAMS = [
     DamInformation(
@@ -62,51 +62,18 @@ def fetch_dam_telemetry(
     now = datetime.now(timezone.utc)
     evidence_records: List[EvidenceRecordSchema] = []
 
-    # Attempt live telemetry if configured
-    if settings.DAM_API_BASE_URL:
+    # 1. Attempt live API retrieval via BBMBDamProvider if configured
+    provider = BBMBDamProvider()
+    if provider.is_configured():
         try:
-            with httpx.Client(timeout=settings.REQUEST_TIMEOUT) as client:
-                res = client.get(f"{settings.DAM_API_BASE_URL}/telemetry")
-                if res.status_code == 200:
-                    records = []
-                    for item in res.json().get("dams", []):
-                        discharge = float(item.get("outflow_discharge_cusecs", 30000))
-                        dam_info = DamInformation(
-                            dam_id=item["dam_id"],
-                            name=item["name"],
-                            river=item["river"],
-                            full_reservoir_level_meters=float(item["full_reservoir_level_m"]),
-                            current_water_level_meters=float(item.get("water_level_m", 0.0)),
-                            capacity_percent=float(item.get("capacity_pct", 80.0)),
-                            inflow_cusecs=float(item.get("inflow_cusecs", 30000)),
-                            outflow_discharge_cusecs=discharge,
-                            spillway_gates_open=int(item.get("spillway_gates", 0)),
-                            status=EvidenceStatus.LIVE,
-                            last_updated=now,
-                            is_high_discharge=discharge >= settings.DAM_HIGH_DISCHARGE_CUSECS,
-                            is_critical_discharge=discharge >= settings.DAM_CRITICAL_DISCHARGE_CUSECS,
-                        )
-                        records.append(dam_info)
-                        ev = EvidenceRecordSchema(
-                            source="BBMB",
-                            source_type="DAM_TELEMETRY",
-                            location={"dam_name": dam_info.name, "river": dam_info.river},
-                            parameter="dam_spillway_outflow",
-                            value=discharge,
-                            unit="cusecs",
-                            observed_at=now,
-                            status=EvidenceStatus.LIVE,
-                            quality=EvidenceQuality.HIGH,
-                            limitations="Automated SCADA telemetry from reservoir control gate",
-                        )
-                        evidence_records.append(ev)
-                    return records, evidence_records
+            return provider.fetch_dam_telemetry(river_basin=river_basin)
         except Exception as e:
-            logger.warning("Dam telemetry API failed: %s; using simulated reservoir records.", str(e))
+            logger.warning("BBMB dam provider failed: %s; falling back according to simulation configuration.", str(e))
 
-    # Standard fallback simulation
+    # 2. Fallback: Simulation or Explicit UNAVAILABLE
     relevant_dams: List[DamInformation] = []
     status = EvidenceStatus.SIMULATED if allow_simulated else EvidenceStatus.UNAVAILABLE
+    source_name = "BBMB_TELEMETRY_SAMPLE" if allow_simulated else "BBMB"
 
     for base_dam in PUNJAB_DAMS:
         # Filter relevant to river basin if specified
@@ -125,6 +92,7 @@ def fetch_dam_telemetry(
             outflow_discharge_cusecs=discharge,
             spillway_gates_open=base_dam.spillway_gates_open if allow_simulated else None,
             status=status,
+            is_simulated=(status == EvidenceStatus.SIMULATED),
             last_updated=now,
             is_high_discharge=(discharge is not None and discharge >= settings.DAM_HIGH_DISCHARGE_CUSECS),
             is_critical_discharge=(discharge is not None and discharge >= settings.DAM_CRITICAL_DISCHARGE_CUSECS),
@@ -132,9 +100,9 @@ def fetch_dam_telemetry(
         relevant_dams.append(d)
 
         ev = EvidenceRecordSchema(
-            source="BBMB_TELEMETRY_LOG",
+            source=source_name,
             source_type="DAM_TELEMETRY",
-            location={"dam_name": d.name, "river": d.river},
+            location={"dam_name": base_dam.name, "river": base_dam.river, "dam_id": base_dam.dam_id},
             parameter="dam_spillway_outflow",
             value=discharge,
             unit="cusecs",
@@ -142,12 +110,10 @@ def fetch_dam_telemetry(
             retrieved_at=now,
             status=status,
             quality=EvidenceQuality.MEDIUM if allow_simulated else EvidenceQuality.LOW,
-            limitations="Simulated spillway discharge for upstream flood risk assessment.",
+            dataset_name="BBMB / PSPCL Dam Bulletin",
+            limitations="Simulated dam discharge based on standard monsoon release scenario." if allow_simulated else "Live dam telemetry feed is unconfigured or unavailable.",
+            eligibility_reason="SIMULATION_DEMO" if allow_simulated else "MEASUREMENT_UNAVAILABLE",
         )
         evidence_records.append(ev)
 
-    if not relevant_dams:
-        relevant_dams = [PUNJAB_DAMS[0]]
-
     return relevant_dams, evidence_records
-

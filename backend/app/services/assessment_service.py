@@ -162,7 +162,19 @@ class AssessmentService:
                 status=tr.get("status", "COMPLETED"),
                 duration_ms=tr.get("duration_ms", 0.0),
                 inputs_json=tr.get("inputs", {}),
-                outputs_json=tr.get("outputs", {}),
+                outputs_json={
+                    **tr.get("outputs", {}),
+                    "provider_dependency": tr.get("provider_dependency"),
+                    "evidence_mode": tr.get("evidence_mode"),
+                    "data_freshness": tr.get("data_freshness"),
+                    "input_evidence_refs": tr.get("input_evidence_refs", []),
+                    "output_evidence_refs": tr.get("output_evidence_refs", []),
+                    "is_execution_completed": tr.get("is_execution_completed", True),
+                    "is_schema_validated": tr.get("is_schema_validated", True),
+                    "is_source_authenticated": tr.get("is_source_authenticated", False),
+                    "is_data_freshness_validated": tr.get("is_data_freshness_validated", False),
+                    "diagnostic_message": tr.get("diagnostic_message"),
+                },
                 error_message=tr.get("error_message"),
             )
             self.agent_exec_repo.record_execution(exec_entity)
@@ -199,6 +211,8 @@ class AssessmentService:
             for k, v in outlooks_raw.items()
         }
 
+
+
         return FloodAssessmentResponse(
             assessment_id=saved_fa.id,
             run_id=run_id,
@@ -218,6 +232,7 @@ class AssessmentService:
             evacuation=gis_out,
             alert_draft_id=alert_draft_id,
             alert_draft=alert_schema_obj,
+            agent_traces=traces,
             limitations=limitations,
             warnings=warnings,
             validation_status=schema_val,
@@ -299,9 +314,33 @@ class AssessmentService:
                 approved_at=ad.approved_at,
             )
 
+        persisted_traces: Dict[str, Any] = {}
+        for ex in getattr(fa, "agent_executions", []):
+            persisted_traces[ex.agent_name] = {
+                "execution_id": ex.id,
+                "agent_name": ex.agent_name,
+                "status": ex.status,
+                "duration_ms": ex.duration_ms,
+                "inputs": ex.inputs_json or {},
+                "outputs": ex.outputs_json or {},
+                "provider_dependency": (ex.outputs_json or {}).get("provider_dependency"),
+                "evidence_mode": (ex.outputs_json or {}).get("evidence_mode"),
+                "data_freshness": (ex.outputs_json or {}).get("data_freshness"),
+                "input_evidence_refs": (ex.outputs_json or {}).get("input_evidence_refs", []),
+                "output_evidence_refs": (ex.outputs_json or {}).get("output_evidence_refs", []),
+                "is_execution_completed": (ex.outputs_json or {}).get("is_execution_completed", True),
+                "is_schema_validated": (ex.outputs_json or {}).get("is_schema_validated", True),
+                "is_source_authenticated": (ex.outputs_json or {}).get("is_source_authenticated", False),
+                "is_data_freshness_validated": (ex.outputs_json or {}).get("is_data_freshness_validated", False),
+                "diagnostic_message": (ex.outputs_json or {}).get("diagnostic_message"),
+                "error_message": ex.error_message,
+            }
+
         excluded_list = [
             ExcludedEvidenceRecord(**ex) for ex in (getattr(fa, "excluded_evidence_json", []) or [])
         ]
+
+
 
         return FloodAssessmentResponse(
             assessment_id=fa.id,
@@ -321,6 +360,7 @@ class AssessmentService:
             explanation=fa.explanation,
             alert_draft_id=alert_id,
             alert_draft=alert_obj,
+            agent_traces=persisted_traces,
             limitations=getattr(fa, "limitations_json", []) or [],
             warnings=getattr(fa, "warnings_json", []) or [],
             validation_status=getattr(fa, "validation_status", "PASSED") or "PASSED",

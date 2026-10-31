@@ -1,8 +1,8 @@
 """Weather schema definitions for rainfall forecasts and precipitation evidence."""
 
 from datetime import datetime, timezone
-from typing import List, Optional
-from pydantic import Field
+from typing import Any, List, Optional
+from pydantic import Field, model_validator
 from backend.app.schemas.common import BaseSchema
 from backend.app.schemas.evidence import EvidenceRecordSchema
 
@@ -22,6 +22,17 @@ class WeatherForecastData(BaseSchema):
     forecast_valid_time_72h: Optional[datetime] = None
     issued_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     is_simulated: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def sync_simulated_status(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            src = str(data.get("forecast_source", ""))
+            if "SIMULATED" in src or "SAMPLE" in src or data.get("is_simulated") is True:
+                data["is_simulated"] = True
+            elif src in ("IMD", "IMD_WEATHER", "IMD_API", "LIVE"):
+                data["is_simulated"] = False
+        return data
 
 
 class WeatherAgentOutput(BaseSchema):

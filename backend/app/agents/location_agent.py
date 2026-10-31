@@ -1,5 +1,5 @@
 """Location Agent module re-export."""
 
-from .location_agent.agent import LocationAgent
+from backend.app.agents.location_agent.agent import LocationAgent
 
 __all__ = ["LocationAgent"]

@@ -12,6 +12,8 @@ from backend.app.api.routes import (
     replay,
     reports,
     alerts,
+    providers,
+    auth,
 )
 
 __all__ = [
@@ -26,5 +28,6 @@ __all__ = [
     "replay",
     "reports",
     "alerts",
+    "providers",
+    "auth",
 ]
-

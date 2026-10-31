@@ -1,4 +1,4 @@
-"""ORAC-FloodGuard Backend Application Package."""
+"""ORCA-FloodGuard Backend Application Package."""
 
 import sys
 from pathlib import Path

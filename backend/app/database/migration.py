@@ -1,4 +1,4 @@
-"""SQLite & PostgreSQL database schema migration engine for ORAC-FloodGuard.
+"""SQLite & PostgreSQL database schema migration engine for ORCA-FloodGuard.
 
 Safely adds missing columns, removes outdated NOT NULL constraints,
 tracks versioned migrations, and preserves existing data.

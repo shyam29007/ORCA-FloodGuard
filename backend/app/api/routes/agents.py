@@ -63,10 +63,19 @@ def get_run_trace(
             "duration_ms": e.duration_ms,
             "inputs": e.inputs_json,
             "outputs": e.outputs_json,
+            "provider_dependency": (e.outputs_json or {}).get("provider_dependency"),
+            "evidence_mode": (e.outputs_json or {}).get("evidence_mode"),
+            "data_freshness": (e.outputs_json or {}).get("data_freshness"),
+            "input_evidence_refs": (e.outputs_json or {}).get("input_evidence_refs", []),
+            "output_evidence_refs": (e.outputs_json or {}).get("output_evidence_refs", []),
+            "is_execution_completed": (e.outputs_json or {}).get("is_execution_completed", True),
+            "is_schema_validated": (e.outputs_json or {}).get("is_schema_validated", True),
+            "is_source_authenticated": (e.outputs_json or {}).get("is_source_authenticated", False),
+            "is_data_freshness_validated": (e.outputs_json or {}).get("is_data_freshness_validated", False),
+            "diagnostic_message": (e.outputs_json or {}).get("diagnostic_message"),
             "error_message": e.error_message,
         }
         for e in executions
     ]
 
     return ApiResponse(success=True, data=traces)
-
